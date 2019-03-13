@@ -30,6 +30,10 @@ struct flb_splunk *flb_splunk_conf_create(struct flb_output_instance *ins,
     int io_flags = 0;
     char *tmp;
     flb_sds_t t;
+    struct flb_config_prop *prop;
+    struct mk_list *head;
+    struct mk_list *split;
+    struct flb_split_entry *sentry;
     struct flb_upstream *upstream;
     struct flb_splunk *ctx;
 
@@ -121,6 +125,35 @@ struct flb_splunk *flb_splunk_conf_create(struct flb_output_instance *ins,
     }
     else {
         ctx->splunk_send_raw = FLB_FALSE;
+    }
+
+    /* Splunk meta data */
+    tmp = flb_output_get_property("add_meta", ins);
+    if (tmp) {
+	    mk_list_init(&ctx->splunk_meta);
+    }
+    mk_list_foreach(head, &ins->properties) {
+        prop = mk_list_entry(head, struct flb_config_prop, _head);
+        if (strncasecmp(prop->key, "add_meta", 8) == 0) {
+            split = flb_utils_split(prop->val, ' ', 2);
+	    if (mk_list_size(split) != 2) {
+                flb_error("[out_splunk] add_meta needs to argments");
+                flb_utils_split_free(split);
+                flb_splunk_conf_destroy(ctx);
+                return NULL;
+	    }
+	    struct flb_config_prop *meta_prop;
+	    meta_prop = flb_calloc(1, sizeof(struct flb_config_prop));
+
+	    sentry = mk_list_entry_first(split, struct flb_split_entry, _head);
+	    meta_prop->key = sentry->value;
+
+	    sentry = mk_list_entry_next(&sentry->_head, struct flb_split_entry, _head, split);
+	    meta_prop->val = sentry->value;
+
+	    mk_list_add(&meta_prop->_head, &ctx->splunk_meta);
+
+        }
     }
 
     return ctx;

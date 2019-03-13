@@ -44,6 +44,9 @@ struct flb_splunk {
 
     /* Upstream connection to the backend server */
     struct flb_upstream *u;
+
+    /* Splunk meta data */
+    struct mk_list splunk_meta;
 };
 
 #endif

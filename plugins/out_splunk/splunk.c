@@ -53,6 +53,8 @@ int splunk_format(void *in_buf, size_t in_bytes,
     size_t off = 0;
     double t;
     struct flb_time tm;
+    struct mk_list *head;
+    struct flb_config_prop *prop;
     msgpack_unpacked result;
     msgpack_object root;
     msgpack_object *obj;
@@ -89,9 +91,9 @@ int splunk_format(void *in_buf, size_t in_bytes,
         map_size = map.via.map.size;
 
         if (ctx->splunk_send_raw == FLB_TRUE) {
-            msgpack_pack_map(&mp_pck, 1 + map_size /* time + all k/v */);
+            msgpack_pack_map(&mp_pck, 1 + map_size + mk_list_size(&ctx->splunk_meta) /* time + all k/v + splunk meta data*/);
         } else {
-            msgpack_pack_map(&mp_pck, 2 /* time + event */);
+            msgpack_pack_map(&mp_pck, 2 + mk_list_size(&ctx->splunk_meta) /* time + event + splunk meta data*/);
         }
 
         /* Append the time key */
@@ -100,6 +102,17 @@ int splunk_format(void *in_buf, size_t in_bytes,
                               FLB_SPLUNK_DEFAULT_TIME,
                               sizeof(FLB_SPLUNK_DEFAULT_TIME) - 1);
         msgpack_pack_double(&mp_pck, t);
+
+	/* Append splunk meta data */
+        mk_list_foreach(head, &ctx->splunk_meta) {
+            prop = mk_list_entry(head, struct flb_config_prop, _head);
+
+            msgpack_pack_str(&mp_pck, strlen(prop->key));
+            msgpack_pack_str_body(&mp_pck, prop->key, strlen(prop->key));
+
+            msgpack_pack_str(&mp_pck, strlen(prop->val));
+            msgpack_pack_str_body(&mp_pck, prop->val, strlen(prop->val));
+        }
 
         if (ctx->splunk_send_raw == FLB_FALSE) {
             /* Add k/v pairs under the key 'event' instead of to the top level object */
